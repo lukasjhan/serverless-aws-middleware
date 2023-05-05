@@ -1,7 +1,6 @@
-import fetch from 'cross-fetch';
 import * as fs from 'fs';
 
-import { AWSComponent } from './define';
+import { AWSComponent } from './types';
 
 export interface AWSConfig {
   [key: string]: string | boolean | number | undefined;
@@ -27,20 +26,18 @@ export class SimpleAWSConfig {
   };
 }
 
+const loadAWSConfigFromFile = (filename: string): AWSConfigs => {
+  const config: AWSConfigs = JSON.parse(fs.readFileSync(filename, 'utf-8'));
+  return config;
+};
+
 export const loadAWSConfig = (
-  newConfigsOrUrl: SimpleAWSConfigLoadParam,
+  configOrFilename: SimpleAWSConfigLoadParam,
 ): Promise<SimpleAWSConfig> => {
-  if (typeof newConfigsOrUrl === 'string') {
-    if (/^http.*json$/.test(newConfigsOrUrl)) {
-      return fetch(newConfigsOrUrl)
-        .then(r => r.json())
-        .then(loadAWSConfig);
-    } else if (/json$/.test(newConfigsOrUrl)) {
-      return loadAWSConfig(
-        JSON.parse(fs.readFileSync(newConfigsOrUrl, 'utf-8')),
-      );
-    }
-    return loadAWSConfig(JSON.parse(newConfigsOrUrl));
-  }
-  return Promise.resolve(new SimpleAWSConfig(newConfigsOrUrl));
+  const config =
+    typeof configOrFilename === 'string'
+      ? loadAWSConfigFromFile(configOrFilename)
+      : configOrFilename;
+
+  return Promise.resolve(new SimpleAWSConfig(config));
 };

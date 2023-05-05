@@ -44,10 +44,10 @@ class HandlerProxy<A extends HandlerAuxBase> {
   private aux: A;
 
   public constructor(event: any, context: any, callback: any) {
-    logger.stupid(`event`, event);
+    logger.all(`event`, event);
     this.request = new HandlerRequest(event, context);
     this.response = new HandlerResponse(callback);
-    this.aux = {} as A; // tslint:disable-line
+    this.aux = {} as A;
   }
 
   public call = async (
@@ -90,18 +90,8 @@ class HandlerProxy<A extends HandlerAuxBase> {
       ...(await iterate(actualHandler, true)),
       ...(await iterate(endHandlers)),
     ].filter(x => x);
-    // In test phase, throws any exception if there was.
-    if (process.env.NODE_ENV === 'test') {
-      for (const each of results) {
-        if (each instanceof Error) {
-          logger.error(`Error occurred: ${stringifyError(each)}`);
-          throw each;
-        }
-      }
-    }
-    results.forEach(result =>
-      logger.silly(`middleware result : ${JSON.stringify(result)}`),
-    );
+
+    logger.all(`middleware results`, results);
   };
 
   private safeCall = async (
@@ -128,7 +118,7 @@ class HandlerProxy<A extends HandlerAuxBase> {
     });
     const result =
       maybePromise instanceof Promise ? await maybePromise : maybePromise;
-    logger.stupid(`result`, result);
+    logger.all(`result`, result);
     if (!this.response.completed && okResponsible) {
       this.response.ok(result);
     }
@@ -157,7 +147,6 @@ class HandlerProxy<A extends HandlerAuxBase> {
   };
 }
 
-// It will break type safety because there is no relation between Aux and Plugin.
 const build = <Aux extends HandlerAuxBase>(
   plugins: Array<HandlerPluginBase<any>>,
 ) => {

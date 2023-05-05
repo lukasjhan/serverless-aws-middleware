@@ -153,7 +153,7 @@ export class ConnectionProxy {
     try {
       if (database) {
         logger.debug(`Prepare a database[${this.dbName}]`);
-        logger.stupid(this.dbName!, database);
+        logger.all(this.dbName!, database);
         const result = await this.query(database);
         logger.debug(
           `Database[${this.dbName}] is initialized: ${JSON.stringify(result)}`,
@@ -166,7 +166,7 @@ export class ConnectionProxy {
 
       for (const [name, query] of Object.entries(tables)) {
         logger.debug(`Prepare a table[${name}]`);
-        logger.stupid(name, query);
+        logger.all(name, query);
         const result = await this.query(query);
         logger.debug(
           `Table[${name}] is initialized: ${JSON.stringify(result)}`,

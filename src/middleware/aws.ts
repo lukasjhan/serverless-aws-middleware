@@ -48,7 +48,6 @@ export class AWSPlugin extends HandlerPluginBase<AWSPluginAux> {
   }
 
   public create = async () => {
-    // Setup only once.
     if (!this.aws) {
       const { config, mapper } = this.options || {
         config: undefined,

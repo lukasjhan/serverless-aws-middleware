@@ -82,7 +82,7 @@ export class Tracer {
           QueueName: this.queueName,
         })
         .promise();
-      logger.stupid(`urlResult`, urlResult);
+      logger.all(`urlResult`, urlResult);
       if (!urlResult.QueueUrl) {
         throw new Error(`No queue url with name[${this.queueName}]`);
       }
@@ -101,7 +101,7 @@ export class Tracer {
             })),
           })
           .promise();
-        logger.stupid(`sendBatchResult`, sendBatchResult);
+        logger.all(`sendBatchResult`, sendBatchResult);
       }
 
       this.buffer = [];

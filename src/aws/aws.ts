@@ -1,4 +1,4 @@
-import * as AWS from 'aws-sdk'; // tslint:disable-line
+import * as AWS from 'aws-sdk';
 import * as fs from 'fs';
 
 import { getLogger } from '../utils';
@@ -9,12 +9,14 @@ import {
   S3SignedUrlParams,
   S3SignedUrlResult,
   SQSMessageBody,
-} from './define';
+} from './types';
 
 const logger = getLogger(__filename);
 
+// TODO: Make class separated by each component.
+// S3, SQS, DynamoDB, CloudFront, etc.
 export class SimpleAWS {
-  private queueUrls: { [queueName: string]: string };
+  private queueUrls: { [queueName: string]: string } = {};
   private config: SimpleAWSConfig;
   private lazyS3: AWS.S3 | undefined;
   private lazySqs: AWS.SQS | undefined;
@@ -23,12 +25,6 @@ export class SimpleAWS {
 
   constructor(config?: SimpleAWSConfig) {
     this.config = config || new SimpleAWSConfig();
-    /**
-     * The simple cache for { queueName: queueUrl }.
-     * It can help in the only case of launching this project as offline.
-     * @type { { [queueName: string]: string } }
-     */
-    this.queueUrls = {};
   }
 
   get s3() {
@@ -37,12 +33,14 @@ export class SimpleAWS {
     }
     return this.lazyS3;
   }
+
   get sqs() {
     if (this.lazySqs === undefined) {
       this.lazySqs = new AWS.SQS(this.config.get(AWSComponent.sqs));
     }
     return this.lazySqs;
   }
+
   get dynamodb() {
     if (this.lazyDynamodb === undefined) {
       this.lazyDynamodb = new AWS.DynamoDB.DocumentClient(
@@ -51,6 +49,7 @@ export class SimpleAWS {
     }
     return this.lazyDynamodb;
   }
+
   get dynamodbAdmin() {
     if (this.lazyDynamodbAdmin === undefined) {
       this.lazyDynamodbAdmin = new AWS.DynamoDB(
@@ -69,7 +68,7 @@ export class SimpleAWS {
         QueueName: queueName,
       })
       .promise();
-    logger.stupid(`urlResult`, urlResult);
+    logger.all(`urlResult`, urlResult);
     if (!urlResult.QueueUrl) {
       throw new Error(`No queue url with name[${queueName}]`);
     }
@@ -78,7 +77,7 @@ export class SimpleAWS {
 
   public enqueue = async (queueName: string, data: any): Promise<number> => {
     logger.debug(`Send message[${data.key}] to queue.`);
-    logger.stupid(`data`, data);
+    logger.all(`data`, data);
     const queueUrl = await this.getQueueUrl(queueName);
     const sendResult = await this.sqs
       .sendMessage({
@@ -87,7 +86,7 @@ export class SimpleAWS {
         DelaySeconds: 0,
       })
       .promise();
-    logger.stupid(`sendResult`, sendResult);
+    logger.all(`sendResult`, sendResult);
 
     const attrResult = await this.sqs
       .getQueueAttributes({
@@ -95,7 +94,7 @@ export class SimpleAWS {
         AttributeNames: ['ApproximateNumberOfMessages'],
       })
       .promise();
-    logger.stupid(`attrResult`, attrResult);
+    logger.all(`attrResult`, attrResult);
     if (!attrResult.Attributes) {
       return 0;
     }
@@ -118,7 +117,7 @@ export class SimpleAWS {
         VisibilityTimeout: visibilityTimeout,
       })
       .promise();
-    logger.stupid(`receiveResult`, receiveResult);
+    logger.all(`receiveResult`, receiveResult);
     if (
       receiveResult.Messages === undefined ||
       receiveResult.Messages.length === 0
@@ -137,7 +136,7 @@ export class SimpleAWS {
       };
       data.push(message);
     }
-    logger.verbose(`Receive a message[${JSON.stringify(data)}] from queue`);
+    logger.all(`Receive a message`, data);
     return data;
   };
 
@@ -162,7 +161,7 @@ export class SimpleAWS {
         messages.push(each);
       }
     }
-    logger.stupid(`messages`, messages);
+    logger.all(`messages`, messages);
     return messages;
   };
 
@@ -185,7 +184,7 @@ export class SimpleAWS {
               if (err) {
                 reject(err);
               } else {
-                logger.stupid(`changeResult`, changeResult);
+                logger.all(`changeResult`, changeResult);
                 resolve(handle);
               }
             },
@@ -206,7 +205,7 @@ export class SimpleAWS {
         ReceiptHandle: handle,
       })
       .promise();
-    logger.stupid(`deleteResult`, deleteResult);
+    logger.all(`deleteResult`, deleteResult);
     return handle;
   };
 
@@ -231,7 +230,7 @@ export class SimpleAWS {
           })),
         })
         .promise();
-      logger.stupid(`deleteResult`, deletesResult);
+      logger.all(`deleteResult`, deletesResult);
     }
     return handles;
   };
@@ -269,7 +268,7 @@ export class SimpleAWS {
         Body: fs.createReadStream(localPath),
       })
       .promise();
-    logger.stupid(`putResult`, putResult);
+    logger.all(`putResult`, putResult);
     return key;
   };
 
@@ -337,12 +336,12 @@ export class SimpleAWS {
         Key: key,
       })
       .promise();
-    logger.stupid(`getResult`, getResult);
+    logger.all(`getResult`, getResult);
     const item: T | undefined =
       getResult !== undefined && getResult.Item !== undefined
         ? ((getResult.Item as any) as T) // Casts forcefully.
         : defaultValue;
-    logger.stupid(`item`, item);
+    logger.all(`item`, item);
     return item;
   };
 
@@ -354,15 +353,15 @@ export class SimpleAWS {
     logger.debug(
       `Update an item with key[${JSON.stringify(key)}] to ${tableName}`,
     );
-    logger.stupid(`keyValues`, columnValues);
+    logger.all(`keyValues`, columnValues);
     const expressions = Object.keys(columnValues)
       .map(column => `${column} = :${column}`)
       .join(', ');
     const attributeValues = Object.keys(columnValues)
       .map(column => [`:${column}`, columnValues[column]])
       .reduce((obj, pair) => ({ ...obj, [pair[0]]: pair[1] }), {});
-    logger.stupid(`expressions`, expressions);
-    logger.stupid(`attributeValues`, attributeValues);
+    logger.all(`expressions`, expressions);
+    logger.all(`attributeValues`, attributeValues);
     const updateResult = await this.dynamodb
       .update({
         TableName: tableName,
@@ -371,7 +370,7 @@ export class SimpleAWS {
         ExpressionAttributeValues: attributeValues,
       })
       .promise();
-    logger.stupid(`updateResult`, updateResult);
+    logger.all(`updateResult`, updateResult);
     return updateResult;
   };
 
@@ -401,7 +400,7 @@ export class SimpleAWS {
         QueueName: queueName,
       })
       .promise();
-    logger.stupid(`createResult`, createResult);
+    logger.all(`createResult`, createResult);
     return true;
   };
 
@@ -430,7 +429,7 @@ export class SimpleAWS {
         Bucket: bucketName,
       })
       .promise();
-    logger.stupid(`createResult`, createResult);
+    logger.all(`createResult`, createResult);
     if (cors) {
       const corsResult = await this.s3
         .putBucketCors({
@@ -446,7 +445,7 @@ export class SimpleAWS {
           },
         })
         .promise();
-      logger.stupid(`corsResult`, corsResult);
+      logger.all(`corsResult`, corsResult);
     }
     return true;
   };
@@ -475,7 +474,7 @@ export class SimpleAWS {
         },
       })
       .promise();
-    logger.stupid(`createResult`, createResult);
+    logger.all(`createResult`, createResult);
     return true;
   };
 }

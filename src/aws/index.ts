@@ -1,3 +1,3 @@
-export * from './define';
+export * from './types';
 export * from './config';
-export * from './simple';
+export * from './aws';
