@@ -31,6 +31,7 @@
     "publish": "npm publish --access public"
   },
   "dependencies": {
+    "@types/aws-lambda": "^8.10.115",
     "@types/mysql": "^2.15.5",
     "axios": "^1.4.0",
     "mysql": "^2.16.0",
