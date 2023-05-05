@@ -24,7 +24,7 @@ class HandlerMiddleware<A extends HandlerAuxBase> {
 
   private createAuxPromise = (): Promise<A> => {
     return !this.plugins || this.plugins.length === 0
-      ? Promise.resolve({} as A) // tslint:disable-line
+      ? Promise.resolve({} as A)
       : Promise.all(
           this.plugins.map(plugin => {
             const maybePromise = plugin.create();

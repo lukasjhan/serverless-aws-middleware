@@ -1,4 +1,4 @@
-import * as AWS from 'aws-sdk'; // tslint:disable-line
+import * as AWS from 'aws-sdk';
 import { v4 as uuid4 } from 'uuid';
 import {
   AWSComponent,
@@ -16,11 +16,8 @@ const logger = getLogger(__filename);
 interface ITracerLog {
   uuid: string;
   timestamp: number;
-  route: string;
   key: string;
   system: string;
-  action: string;
-  attribute: string;
   body: string;
   error: boolean;
   client: string;
@@ -31,7 +28,6 @@ interface ITracerLogInput {
   route?: string;
   key?: string;
   system?: string;
-  action?: string;
   attribute: string;
   body: string;
   error?: boolean;
@@ -44,11 +40,8 @@ export class TracerLog implements ITracerLog {
   public readonly timestamp: number;
 
   constructor(
-    public readonly route: string,
     public readonly key: string,
     public readonly system: string,
-    public readonly action: string,
-    public readonly attribute: string,
     public readonly body: string,
     public readonly error: boolean,
     public readonly client: string,
@@ -117,19 +110,15 @@ export class TracerWrapper {
     private route: string,
     private system: string,
     private key: string,
-    private action: string,
     private client: string,
     private version: string,
   ) {}
 
-  public push = (attribute: string, body: string, error: boolean = false) => {
+  public push = (body: string, error: boolean = false) => {
     this.tracer.push(
       new TracerLog(
-        this.route,
         this.key,
         this.system,
-        this.action,
-        attribute,
         body,
         error,
         this.client,
@@ -141,11 +130,8 @@ export class TracerWrapper {
   public send = (log: ITracerLogInput) => {
     this.tracer.push(
       new TracerLog(
-        log.route || this.route,
         log.key || this.key,
         log.system || this.system,
-        log.action || this.action,
-        log.attribute,
         log.body,
         log.error || false,
         log.client || this.client,
@@ -177,10 +163,6 @@ export class TracerPlugin extends HandlerPluginBase<TracerPluginAux> {
   constructor(options: TracerPluginOptions) {
     super();
     this.options = options;
-    this.last = {
-      key: 'nothing',
-      action: 'unknown',
-    };
     this.client = {
       agent: '',
       version: '',
@@ -215,7 +197,6 @@ export class TracerPlugin extends HandlerPluginBase<TracerPluginAux> {
         this.options.route,
         this.options.system,
         key,
-        action,
         this.client.agent,
         this.client.version,
       );
@@ -224,7 +205,7 @@ export class TracerPlugin extends HandlerPluginBase<TracerPluginAux> {
   };
 
   public begin = ({ request }: HandlerContext<TracerPluginAux>) => {
-    this.client.version = request.header('X-Version') || '0.0.0';
+    this.client.version = request.header('Version') || '0.0.0';
     this.client.agent = (() => {
       const fromHeader = request.header('User-Agent');
       if (fromHeader) {
@@ -256,7 +237,6 @@ export class TracerPlugin extends HandlerPluginBase<TracerPluginAux> {
     aux
       .tracer(key, action)
       .push(
-        'error',
         typeof request.lastError === 'string'
           ? request.lastError
           : stringifyError(request.lastError),
