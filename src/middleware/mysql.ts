@@ -38,7 +38,7 @@ export class ConnectionProxy {
       await this.tryToInitializeSchema(false);
 
       if (process.env.NODE_ENV !== 'test') {
-        logger.silly(`Execute query[${sql}] with params[${params}]`);
+        logger.debug(`Execute query[${sql}] with params[${params}]`);
       }
       connection.query(sql, params, (err: mysql.MysqlError, result?: T) => {
         if (err) {
@@ -47,7 +47,7 @@ export class ConnectionProxy {
         } else {
           resolve(result);
           if (process.env.NODE_ENV !== 'test') {
-            logger.silly(`DB result is ${JSON.stringify(result)}`);
+            logger.debug(`DB result is ${JSON.stringify(result)}`);
           }
         }
       });
@@ -111,7 +111,7 @@ export class ConnectionProxy {
     if (this.connection) {
       this.connection.end();
       this.connection = undefined;
-      logger.verbose('Connection is end');
+      logger.trace('Connection is end');
     }
   };
 
@@ -127,7 +127,7 @@ export class ConnectionProxy {
   };
 
   private changeDatabase = (dbName: string) =>
-    new Promise((resolve, reject) =>
+    new Promise<void>((resolve, reject) =>
       this.prepareConnection().changeUser(
         {
           database: dbName,
@@ -161,7 +161,7 @@ export class ConnectionProxy {
       }
       if (this.dbName) {
         await this.changeDatabase(this.dbName);
-        logger.verbose(`Database[${this.dbName}] is connected.`);
+        logger.trace(`Database[${this.dbName}] is connected.`);
       }
 
       for (const [name, query] of Object.entries(tables)) {
@@ -172,7 +172,7 @@ export class ConnectionProxy {
           `Table[${name}] is initialized: ${JSON.stringify(result)}`,
         );
       }
-      logger.verbose(`Database schema is initialized.`);
+      logger.trace(`Database schema is initialized.`);
     } catch (error) {
       logger.warn(error);
       if (!ignoreError) {
