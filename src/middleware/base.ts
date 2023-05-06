@@ -30,11 +30,11 @@ export class HandlerRequest {
     return this.lazyBody || {};
   }
 
-  get path(): { [key: string]: string } {
+  get path() {
     return this.event.pathParameters || {};
   }
 
-  get query(): { [key: string]: string } {
+  get query() {
     return this.event.queryStringParameters || {};
   }
 

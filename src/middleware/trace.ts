@@ -107,7 +107,6 @@ export class Tracer {
 export class TracerWrapper {
   constructor(
     private tracer: Tracer,
-    private route: string,
     private system: string,
     private key: string,
     private client: string,
@@ -194,7 +193,6 @@ export class TracerPlugin extends HandlerPluginBase<TracerPluginAux> {
       this.last = { key, action };
       return new TracerWrapper(
         this.tracer,
-        this.options.route,
         this.options.system,
         key,
         this.client.agent,
