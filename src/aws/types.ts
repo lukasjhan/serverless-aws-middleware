@@ -2,6 +2,7 @@ export enum AWSComponent {
   s3 = 's3',
   sqs = 'sqs',
   dynamodb = 'dynamodb',
+  cloudfront = 'cloudfront',
 }
 
 export interface SQSMessageBody<T> {
