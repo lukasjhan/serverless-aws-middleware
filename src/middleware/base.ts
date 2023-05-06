@@ -1,4 +1,4 @@
-import * as awsTypes from 'aws-lambda'; // tslint:disable-line:no-implicit-dependencies
+import * as awsTypes from 'aws-lambda';
 import { getLogger } from '../utils/logger';
 
 const logger = getLogger(__filename);
@@ -30,11 +30,11 @@ export class HandlerRequest {
     return this.lazyBody || {};
   }
 
-  get path(): { [key: string]: string } {
+  get path() {
     return this.event.pathParameters || {};
   }
 
-  get query(): { [key: string]: string } {
+  get query() {
     return this.event.queryStringParameters || {};
   }
 
@@ -59,19 +59,21 @@ export class HandlerResponse {
   private cookies: string[];
   private crossOrigin?: string;
 
-  constructor(callback: any) {
+  static CORS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'X-Version',
+    'Access-Control-Allow-Credentials': true,
+  };
+
+  constructor(callback: any, corsHeaders: { [header: string]: any } = {}) {
     this.callback = callback;
     this.completed = false;
-    this.corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'X-Version',
-      'Access-Control-Allow-Credentials': true,
-    };
+    this.corsHeaders = corsHeaders;
     this.cookies = [];
   }
 
   public ok(body = {}, code = 200) {
-    logger.stupid(`ok`, body);
+    logger.all(`ok`, body);
     const headers = {
       ...this.corsHeaders,
     };
@@ -93,7 +95,7 @@ export class HandlerResponse {
   }
 
   public fail(body = {}, code = 500) {
-    logger.stupid(`fail`, body);
+    logger.all(`fail`, body);
     const result = this.callback(null, {
       statusCode: code,
       headers: this.corsHeaders,
@@ -147,7 +149,7 @@ export interface HandlerPlugin<A extends HandlerAuxBase> {
   error: Handler<A>;
 }
 
-export class HandlerPluginBase<A extends HandlerAuxBase>
+export abstract class HandlerPluginBase<A extends HandlerAuxBase>
   implements HandlerPlugin<A> {
   public create = (): Promise<A> | A => {
     throw new Error('Not yet implemented');

@@ -1,26 +1,21 @@
-import * as AWS from 'aws-sdk'; // tslint:disable-line
 import { v4 as uuid4 } from 'uuid';
 import {
-  AWSComponent,
   loadAWSConfig,
-  SimpleAWS,
+  SimpleAWSConfig,
   SimpleAWSConfigLoadParam,
 } from '../aws';
 import { getLogger, stringifyError } from '../utils';
 
-import { $enum } from 'ts-enum-util';
 import { HandlerAuxBase, HandlerContext, HandlerPluginBase } from './base';
+import { SQS } from '../aws/sqs';
 
 const logger = getLogger(__filename);
 
 interface ITracerLog {
   uuid: string;
   timestamp: number;
-  route: string;
   key: string;
   system: string;
-  action: string;
-  attribute: string;
   body: string;
   error: boolean;
   client: string;
@@ -31,7 +26,6 @@ interface ITracerLogInput {
   route?: string;
   key?: string;
   system?: string;
-  action?: string;
   attribute: string;
   body: string;
   error?: boolean;
@@ -44,11 +38,8 @@ export class TracerLog implements ITracerLog {
   public readonly timestamp: number;
 
   constructor(
-    public readonly route: string,
     public readonly key: string,
     public readonly system: string,
-    public readonly action: string,
-    public readonly attribute: string,
     public readonly body: string,
     public readonly error: boolean,
     public readonly client: string,
@@ -61,10 +52,10 @@ export class TracerLog implements ITracerLog {
 
 export class Tracer {
   private queueName: string;
-  private sqs: AWS.SQS;
+  private sqs: SQS;
   private buffer: TracerLog[];
 
-  constructor(queueName: string, sqs: AWS.SQS) {
+  constructor(queueName: string, sqs: SQS) {
     this.queueName = queueName;
     this.sqs = sqs;
     this.buffer = [];
@@ -77,31 +68,20 @@ export class Tracer {
       return;
     }
     try {
-      const urlResult = await this.sqs
-        .getQueueUrl({
-          QueueName: this.queueName,
-        })
-        .promise();
-      logger.stupid(`urlResult`, urlResult);
-      if (!urlResult.QueueUrl) {
-        throw new Error(`No queue url with name[${this.queueName}]`);
-      }
-      const eventQueueUrl = urlResult.QueueUrl;
+      const eventQueueUrl = await this.sqs.getQueueUrl(this.queueName);
 
       const chunkSize = 10;
       for (let begin = 0; begin < this.buffer.length; begin += chunkSize) {
         const end = Math.min(this.buffer.length, begin + chunkSize);
         const subset = this.buffer.slice(begin, end);
-        const sendBatchResult = await this.sqs
-          .sendMessageBatch({
-            QueueUrl: eventQueueUrl,
-            Entries: subset.map(each => ({
-              Id: `${each.key}_${each.uuid}`,
-              MessageBody: JSON.stringify(each),
-            })),
-          })
-          .promise();
-        logger.stupid(`sendBatchResult`, sendBatchResult);
+        const sendBatchResult = await this.sqs.enqueueBatch(
+          eventQueueUrl,
+          subset.map(each => ({
+            id: `${each.key}_${each.uuid}`,
+            data: JSON.stringify(each),
+          })),
+        );
+        logger.all(`sendBatchResult`, sendBatchResult);
       }
 
       this.buffer = [];
@@ -114,22 +94,17 @@ export class Tracer {
 export class TracerWrapper {
   constructor(
     private tracer: Tracer,
-    private route: string,
     private system: string,
     private key: string,
-    private action: string,
     private client: string,
     private version: string,
   ) {}
 
-  public push = (attribute: string, body: string, error: boolean = false) => {
+  public push = (body: string, error: boolean = false) => {
     this.tracer.push(
       new TracerLog(
-        this.route,
         this.key,
         this.system,
-        this.action,
-        attribute,
         body,
         error,
         this.client,
@@ -141,11 +116,8 @@ export class TracerWrapper {
   public send = (log: ITracerLogInput) => {
     this.tracer.push(
       new TracerLog(
-        log.route || this.route,
         log.key || this.key,
         log.system || this.system,
-        log.action || this.action,
-        log.attribute,
         log.body,
         log.error || false,
         log.client || this.client,
@@ -177,10 +149,6 @@ export class TracerPlugin extends HandlerPluginBase<TracerPluginAux> {
   constructor(options: TracerPluginOptions) {
     super();
     this.options = options;
-    this.last = {
-      key: 'nothing',
-      action: 'unknown',
-    };
     this.client = {
       agent: '',
       version: '',
@@ -192,30 +160,20 @@ export class TracerPlugin extends HandlerPluginBase<TracerPluginAux> {
       ? await loadAWSConfig(this.options.awsConfig)
       : undefined;
 
-    const sqs = (() => {
-      if (!awsConfig) {
-        return new AWS.SQS({
-          region: this.options.region,
-        });
-      }
-      $enum(AWSComponent).forEach(eachComponent => {
-        const config = awsConfig.get(eachComponent);
-        if (config) {
-          config.region = this.options.region;
-        }
-      });
-      return new SimpleAWS(awsConfig).sqs;
-    })();
+    const sqs = new SQS(
+      awsConfig ??
+        new SimpleAWSConfig({
+          sqs: { region: this.options.region ?? 'us-west-2' },
+        }),
+    );
 
     this.tracer = new Tracer(this.options.queueName, sqs);
     const tracer = (key: string, action: string) => {
       this.last = { key, action };
       return new TracerWrapper(
         this.tracer,
-        this.options.route,
         this.options.system,
         key,
-        action,
         this.client.agent,
         this.client.version,
       );
@@ -224,7 +182,7 @@ export class TracerPlugin extends HandlerPluginBase<TracerPluginAux> {
   };
 
   public begin = ({ request }: HandlerContext<TracerPluginAux>) => {
-    this.client.version = request.header('X-Version') || '0.0.0';
+    this.client.version = request.header('Version') || '0.0.0';
     this.client.agent = (() => {
       const fromHeader = request.header('User-Agent');
       if (fromHeader) {
@@ -256,7 +214,6 @@ export class TracerPlugin extends HandlerPluginBase<TracerPluginAux> {
     aux
       .tracer(key, action)
       .push(
-        'error',
         typeof request.lastError === 'string'
           ? request.lastError
           : stringifyError(request.lastError),
