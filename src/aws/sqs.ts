@@ -7,6 +7,7 @@ import {
   ListQueuesCommand,
   ReceiveMessageCommand,
   SQSClient,
+  SendMessageBatchCommand,
   SendMessageCommand,
 } from '@aws-sdk/client-sqs';
 import { SimpleAWSConfig } from './config';
@@ -62,6 +63,23 @@ export class SQS {
     const command = new SendMessageCommand({
       QueueUrl: queueUrl,
       MessageBody: JSON.stringify(data),
+    });
+    await this.sqs.send(command);
+  };
+
+  public enqueueBatch = async <T>(
+    queueName: string,
+    data: Array<{ id: string; data: T }>,
+  ): Promise<void> => {
+    logger.debug(`Send message[${data.map(each => each.id)}] to queue.`);
+    logger.all(`data`, data);
+    const queueUrl = await this.getQueueUrl(queueName);
+    const command = new SendMessageBatchCommand({
+      QueueUrl: queueUrl,
+      Entries: data.map(each => ({
+        Id: each.id,
+        MessageBody: JSON.stringify(each.data),
+      })),
     });
     await this.sqs.send(command);
   };

@@ -1,15 +1,13 @@
-import * as AWS from 'aws-sdk';
 import { v4 as uuid4 } from 'uuid';
 import {
-  AWSComponent,
   loadAWSConfig,
-  SimpleAWS,
+  SimpleAWSConfig,
   SimpleAWSConfigLoadParam,
 } from '../aws';
 import { getLogger, stringifyError } from '../utils';
 
-import { $enum } from 'ts-enum-util';
 import { HandlerAuxBase, HandlerContext, HandlerPluginBase } from './base';
+import { SQS } from '../aws/sqs';
 
 const logger = getLogger(__filename);
 
@@ -54,10 +52,10 @@ export class TracerLog implements ITracerLog {
 
 export class Tracer {
   private queueName: string;
-  private sqs: AWS.SQS;
+  private sqs: SQS;
   private buffer: TracerLog[];
 
-  constructor(queueName: string, sqs: AWS.SQS) {
+  constructor(queueName: string, sqs: SQS) {
     this.queueName = queueName;
     this.sqs = sqs;
     this.buffer = [];
@@ -70,30 +68,19 @@ export class Tracer {
       return;
     }
     try {
-      const urlResult = await this.sqs
-        .getQueueUrl({
-          QueueName: this.queueName,
-        })
-        .promise();
-      logger.all(`urlResult`, urlResult);
-      if (!urlResult.QueueUrl) {
-        throw new Error(`No queue url with name[${this.queueName}]`);
-      }
-      const eventQueueUrl = urlResult.QueueUrl;
+      const eventQueueUrl = await this.sqs.getQueueUrl(this.queueName);
 
       const chunkSize = 10;
       for (let begin = 0; begin < this.buffer.length; begin += chunkSize) {
         const end = Math.min(this.buffer.length, begin + chunkSize);
         const subset = this.buffer.slice(begin, end);
-        const sendBatchResult = await this.sqs
-          .sendMessageBatch({
-            QueueUrl: eventQueueUrl,
-            Entries: subset.map(each => ({
-              Id: `${each.key}_${each.uuid}`,
-              MessageBody: JSON.stringify(each),
-            })),
-          })
-          .promise();
+        const sendBatchResult = await this.sqs.enqueueBatch(
+          eventQueueUrl,
+          subset.map(each => ({
+            id: `${each.key}_${each.uuid}`,
+            data: JSON.stringify(each),
+          })),
+        );
         logger.all(`sendBatchResult`, sendBatchResult);
       }
 
@@ -173,20 +160,12 @@ export class TracerPlugin extends HandlerPluginBase<TracerPluginAux> {
       ? await loadAWSConfig(this.options.awsConfig)
       : undefined;
 
-    const sqs = (() => {
-      if (!awsConfig) {
-        return new AWS.SQS({
-          region: this.options.region,
-        });
-      }
-      $enum(AWSComponent).forEach(eachComponent => {
-        const config = awsConfig.get(eachComponent);
-        if (config) {
-          config.region = this.options.region;
-        }
-      });
-      return new SimpleAWS(awsConfig).sqs;
-    })();
+    const sqs = new SQS(
+      awsConfig ??
+        new SimpleAWSConfig({
+          sqs: { region: this.options.region ?? 'us-west-2' },
+        }),
+    );
 
     this.tracer = new Tracer(this.options.queueName, sqs);
     const tracer = (key: string, action: string) => {
