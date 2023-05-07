@@ -13,18 +13,10 @@ import {
   LoggerPluginAux,
   LogLevel,
   middleware,
-  MySQLPluginAux,
   TracerPluginAux,
 } from 'serverless-simple-middleware';
 
-export type Aux = AWSPluginAux &
-  TracerPluginAux &
-  LoggerPluginAux &
-  MySQLPluginAux;
-
-const dbConfiguration = {
-  database: 'database name',
-};
+export type Aux = AWSPluginAux & TracerPluginAux & LoggerPluginAux;
 
 export const handler = middleware.build<Aux>([
   middleware.aws({
@@ -40,9 +32,6 @@ export const handler = middleware.build<Aux>([
   middleware.logger({
     name: __filename,
     level: LogLevel.Stupid,
-  }),
-  middleware.mysql({
-    config: dbConfiguration,
   }),
 ]);
 ```
