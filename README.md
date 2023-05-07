@@ -51,9 +51,12 @@ export const spam = handler(
 
 ## Include features
 
-- mysql
 - event queue (AWS SQS)
 - S3
 - logging
+- dynamodb
 - organize request object
 - setting response object
+- built-in http error handling module
+- redis, typeorm, mongodb.
+- tmp file management
