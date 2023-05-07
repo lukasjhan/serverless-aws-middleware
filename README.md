@@ -1,4 +1,4 @@
-# Serverless simple middleware
+# Serverless aws middleware
 
 This middleware provide the interface of lambda's handler to use `request => response`
 and provide some AWS features like mysql, event queue, s3, logging, etc.
