@@ -43,6 +43,7 @@
     "mongoose": "^7.1.0",
     "mysql": "^2.16.0",
     "p-limit": "^2.0.0",
+    "redis": "^4.6.6",
     "reflect-metadata": "^0.1.13",
     "ts-enum-util": "^4.0.2",
     "typeorm": "^0.3.15",
