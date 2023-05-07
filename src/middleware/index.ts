@@ -5,6 +5,7 @@ import logger from './logger';
 import trace from './trace';
 import tempFile from './tempFile';
 import db from './db';
+import mongo from './mongo';
 
 export const middleware = {
   build,
@@ -13,6 +14,7 @@ export const middleware = {
   logger,
   tempFile,
   db,
+  mongo,
 };
 
 export * from './base';
@@ -21,3 +23,4 @@ export * from './trace';
 export * from './logger';
 export * from './tempFile';
 export * from './db';
+export * from './mongo';
