@@ -8,6 +8,7 @@ import {
   HandlerRequest,
   HandlerResponse,
 } from './base';
+import { HttpException } from '../error';
 
 const logger = getLogger(__filename);
 
@@ -50,6 +51,15 @@ class HandlerProxy<A extends HandlerAuxBase> {
     this.aux = {} as A;
   }
 
+  private getErrorData = (error: Error): { body: Object; code: number } => {
+    if (error instanceof HttpException) {
+      error.body;
+      return { body: error.body, code: error.code };
+    }
+    logger.error(`Unhandled error: ${stringifyError(error)}`);
+    return { body: {}, code: 500 };
+  };
+
   public call = async (
     middleware: HandlerMiddleware<A>,
     handler: Handler<A>,
@@ -60,9 +70,8 @@ class HandlerProxy<A extends HandlerAuxBase> {
       logger.error(
         `Error while initializing plugins' aux: ${stringifyError(error)}`,
       );
-      this.response.fail(
-        error instanceof Error ? { error: error.message } : error,
-      );
+      const { body, code } = this.getErrorData(error);
+      this.response.fail(body, code);
       return [error];
     }
 
@@ -139,9 +148,8 @@ class HandlerProxy<A extends HandlerAuxBase> {
       }
     }
     if (!this.response.completed) {
-      this.response.fail(
-        error instanceof Error ? { error: error.message } : error,
-      );
+      const { body, code } = this.getErrorData(error);
+      this.response.fail(body, code);
     }
     return error;
   };
