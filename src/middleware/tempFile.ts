@@ -48,28 +48,28 @@ class TempFileManager {
 }
 
 export interface TempFilePluginAux extends HandlerAuxBase {
-  tempFileManager: TempFileManager;
+  tempFile: TempFileManager;
 }
 
 export class TempFilePlugin extends HandlerPluginBase<TempFilePluginAux> {
-  private tempFileManager: TempFileManager;
+  private tempFile: TempFileManager;
   private config?: TempFileManagerOptions;
 
   constructor(config?: TempFileManagerOptions) {
     super();
     this.config = config;
-    this.tempFileManager = new TempFileManager(config);
+    this.tempFile = new TempFileManager(config);
   }
 
   public create = async () => {
     logDirectoryStatus(this.config?.location);
     return {
-      tempFileManager: this.tempFileManager,
+      tempFile: this.tempFile,
     };
   };
 
   public end = () => {
-    this.tempFileManager.clear();
+    this.tempFile.clear();
   };
 }
 
